@@ -74,7 +74,74 @@ resetBtn.addEventListener("click", () => {
   });
 });
 
+const candidatesBox = document.getElementById("candidates");
+
+function clearCandidates() {
+  candidatesBox.innerHTML = "";
+  candidatesBox.classList.remove("show");
+}
+
+/**
+ * Copy `identity` (or null, if none was ever found) + the page's single
+ * weight/height reading. This is the only place that actually writes to the
+ * clipboard — both the auto-copy (unambiguous case) and the manual picker
+ * (ambiguous case) funnel through here, so there is exactly one code path
+ * that can put a patient's data on the clipboard.
+ */
+function copyResult(identity, vitals) {
+  const summary = window.HintsExtract.formatSummary({ primary: identity, weight: vitals.weight, height: vitals.height });
+  preview.textContent = summary;
+
+  navigator.clipboard
+    .writeText(summary)
+    .then(() => {
+      if (!identity) {
+        setStatus("Disalin — tapi identitas pasien tidak ditemukan.", "warn");
+      } else if (vitals.weight == null && vitals.height == null) {
+        setStatus("Disalin — BB/TB belum terisi di HINTS.", "warn");
+      } else {
+        setStatus("Disalin ke clipboard ✔");
+      }
+    })
+    .catch(() => {
+      setStatus("Data dibaca tapi gagal menyalin ke clipboard.", "error");
+    });
+}
+
+/**
+ * More than one "Sdr./Ny./Tn./An. ... RM: ..." block was found on the page.
+ * Guessing which one is the open patient is exactly how the wrong patient's
+ * RM/BB could end up pasted into a dosing calculator — so instead of
+ * guessing, show every candidate and require a manual pick before anything
+ * is copied. Nothing touches the clipboard until the user clicks one.
+ */
+function showCandidatePicker(result) {
+  clearCandidates();
+  preview.textContent = "Menunggu pilihan…";
+  setStatus(
+    `${result.identities.length} pasien terdeteksi di halaman ini — pilih yang benar (jangan menebak) sebelum menyalin.`,
+    "warn"
+  );
+
+  const note = document.createElement("p");
+  note.textContent = "Pilih pasien yang sedang dibuka:";
+  candidatesBox.appendChild(note);
+
+  result.identities.forEach((identity) => {
+    const btn = document.createElement("button");
+    btn.textContent = `${identity.title} ${identity.name} — RM: ${identity.rm}`;
+    btn.addEventListener("click", () => {
+      clearCandidates();
+      copyResult(identity, result);
+    });
+    candidatesBox.appendChild(btn);
+  });
+
+  candidatesBox.classList.add("show");
+}
+
 grabBtn.addEventListener("click", () => {
+  clearCandidates();
   setStatus("Membaca halaman…");
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
@@ -97,28 +164,14 @@ grabBtn.addEventListener("click", () => {
       }
 
       const result = response.result;
-      const summary = window.HintsExtract.formatSummary(result);
-      preview.textContent = summary;
 
-      navigator.clipboard
-        .writeText(summary)
-        .then(() => {
-          if (!result.primary) {
-            setStatus("Disalin — tapi identitas pasien tidak ditemukan.", "warn");
-          } else if (result.ambiguous) {
-            setStatus(
-              `Disalin — ${result.identities.length} pasien terdeteksi di halaman, memakai yang pertama (${result.primary.name}). Periksa kembali.`,
-              "warn"
-            );
-          } else if (result.weight == null && result.height == null) {
-            setStatus("Disalin — BB/TB belum terisi di HINTS.", "warn");
-          } else {
-            setStatus("Disalin ke clipboard ✔");
-          }
-        })
-        .catch(() => {
-          setStatus("Data dibaca tapi gagal menyalin ke clipboard.", "error");
-        });
+      if (result.ambiguous) {
+        // Do NOT auto-copy — see showCandidatePicker's comment above.
+        showCandidatePicker(result);
+        return;
+      }
+
+      copyResult(result.primary, result);
     });
   });
 });
