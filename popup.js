@@ -56,6 +56,10 @@ updateBtn.addEventListener("click", async () => {
       const compiled = window.HintsExtract.compileRegex(json.identityPattern, json.identityFlags, null);
       if (!compiled) throw new Error("Pola identitas (identityPattern) tidak valid, tidak disimpan");
     }
+    if (json.combinedVitalsPattern) {
+      const compiled = window.HintsExtract.compileSimpleRegex(json.combinedVitalsPattern, json.combinedVitalsFlags, null);
+      if (!compiled) throw new Error("Pola BB/TB gabungan (combinedVitalsPattern) tidak valid, tidak disimpan");
+    }
 
     chrome.storage.local.set({ hintsConfig: json }, () => {
       log("✅ Konfigurasi diperbarui dari GitHub");
@@ -89,7 +93,12 @@ function clearCandidates() {
  * that can put a patient's data on the clipboard.
  */
 function copyResult(identity, vitals) {
-  const summary = window.HintsExtract.formatSummary({ primary: identity, weight: vitals.weight, height: vitals.height });
+  const summary = window.HintsExtract.formatSummary({
+    primary: identity,
+    weight: vitals.weight,
+    height: vitals.height,
+    heightSource: vitals.heightSource
+  });
   preview.textContent = summary;
 
   navigator.clipboard
@@ -99,6 +108,11 @@ function copyResult(identity, vitals) {
         setStatus("Disalin — tapi identitas pasien tidak ditemukan.", "warn");
       } else if (vitals.weight == null && vitals.height == null) {
         setStatus("Disalin — BB/TB belum terisi di HINTS.", "warn");
+      } else if (vitals.heightSource === "combined-weight-field") {
+        setStatus(
+          "Disalin — TB diambil dari kolom Berat (\"kg / cm\"), bukan kolom Tinggi. Periksa kembali.",
+          "warn"
+        );
       } else {
         setStatus("Disalin ke clipboard ✔");
       }
