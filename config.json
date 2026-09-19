@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "weightId": "igd_periksa_berat",
+  "heightId": "igd_periksa_tinggi",
+  "identityPattern": "(Sdr\\.|Ny\\.|Tn\\.|An\\.)\\s+([A-Za-z][A-Za-z.'\\- ]*?)\\s+RM\\s*:\\s*(\\d+)(?:\\s*,\\s*(Laki-laki|Perempuan))?(?:\\s*,?\\s*(\\d+\\s*Y\\s*\\d+\\s*M\\s*\\d+\\s*D))?(?:\\s*Alamat\\s*:\\s*(.*?))?(?=\\s*(?:Sdr\\.|Ny\\.|Tn\\.|An\\.|$))",
+  "identityFlags": "gs"
+}
