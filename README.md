@@ -28,7 +28,27 @@ same `#igd_periksa_berat` / `#igd_periksa_tinggi` fields.
   yet, then answers the popup's `EXTRACT_PATIENT` message.
 - `popup.html` / `popup.js` — one button, a preview of what will be copied,
   and a status line that flags when something looks off (no identity found,
-  more than one candidate on the page, or BB/TB still empty).
+  more than one candidate on the page, or BB/TB still empty). If more than
+  one patient is detected, it shows every candidate and copies nothing until
+  you pick the right one (see the safety-fix note below).
+
+## Height sometimes comes from the weight field ("7.71 kg / 71cm")
+
+**Confirmed 20 Sep 2026**: when the dedicated Tinggi Badan (height) field
+isn't available to whoever's charting — the handover doc's note that only
+nurses have edit access to it, and even then the triage form doesn't always
+attach it — both numbers get typed into the Berat Badan (weight) field as
+free text instead, e.g. `7.71 kg / 71cm`, leaving the real height field
+blank.
+
+`extract.js` now falls back to parsing that pattern out of the weight
+field's raw text whenever the dedicated height field comes back empty. The
+copied summary marks it explicitly — `TB: 71 cm (dari kolom Berat)` — and
+the popup's status line calls it out too, so it's never silently treated as
+if it came from the normal field. The pattern
+(`combinedVitalsPattern`/`combinedVitalsFlags`) is remotely configurable the
+same way the identity pattern is, in case the real format varies (different
+spacing, "BB"/"TB" prefixes, etc.).
 
 ## Updating from GitHub (without redistributing the .zip)
 
@@ -40,11 +60,15 @@ update — a small `config.json` in this repo, fetched on demand:
   and caches it in `chrome.storage.local`. **Kembalikan ke default** clears
   the cache and reverts to the extension's built-in defaults.
 - What it can override: `weightId` / `heightId` (if HINTS renames those input
-  IDs) and `identityPattern` / `identityFlags` (if the identity text format
-  changes). This is config, not code — it can't add new extraction logic or
-  run arbitrary scripts, only re-point what's already there.
-- A malformed `config.json` (bad JSON, or a regex that fails to compile, or
-  one missing the `g` flag) is rejected before anything is stored — the
+  IDs), `identityPattern` / `identityFlags` (if the identity text format
+  changes), and `combinedVitalsPattern` / `combinedVitalsFlags` (if the
+  "kg / cm" workaround format varies). This is config, not code — it can't
+  add new extraction logic or run arbitrary scripts, only re-point what's
+  already there.
+- A malformed `config.json` (bad JSON, or `identityPattern` failing to
+  compile or missing the `g` flag) is rejected before anything is stored —
+  `combinedVitalsPattern` is validated for compiling but doesn't require the
+  `g` flag, since it's matched once per field read, not looped. The
   popup shows an error and the previously-working config (or the built-in
   default) keeps being used. Nothing on the clinical-use side can be broken
   by a bad edit to this file; worst case is the update is simply refused.
@@ -79,8 +103,9 @@ picker makes a wrong guess impossible either way.
 
 `node test/extract.test.js` runs the extraction logic against saved mock
 HTML fixtures under `test/fixtures/` (doctor grid view, nurse panel view, a
-patient with a blank/placeholder RM, and a page with two patients visible at
-once). No dependencies beyond Node + jsdom.
+patient with a blank/placeholder RM, a page with two patients visible at
+once, and the combined "kg / cm" weight-field workaround). No dependencies
+beyond Node + jsdom.
 
 ## Next steps (not built yet, see handover doc)
 

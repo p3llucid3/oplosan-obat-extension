@@ -108,5 +108,27 @@ function loadFixture(name) {
   assert(noGlobal === HintsExtract.IDENTITY_RE, "compileRegex: rejects a non-global pattern, falls back");
 }
 
+// --- combined "kg / cm" workaround in the weight field ------------------
+// Real-world case (confirmed 20 Sep 2026, dr. Faza): when the dedicated
+// height field isn't available to whoever's charting, both numbers get
+// typed into the weight field as free text, e.g. "7.71 kg / 71cm".
+{
+  const doc = loadFixture("combined-weight-height.html");
+  const r = HintsExtract.extract(doc);
+  assert(r.weight === 7.71, "combined-field: weight parsed from combined text (" + r.weight + ")");
+  assert(r.height === 71, "combined-field: height recovered from combined text (" + r.height + ")");
+  assert(r.heightSource === "combined-weight-field", "combined-field: heightSource flagged (" + r.heightSource + ")");
+  const summary = HintsExtract.formatSummary(r);
+  assert(summary.indexOf("TB: 71 cm (dari kolom Berat)") !== -1, "combined-field: summary notes the source (" + summary + ")");
+}
+
+// A normal case (separate fields, both filled) must NOT be flagged as combined.
+{
+  const doc = loadFixture("doctor-grid.html");
+  const r = HintsExtract.extract(doc);
+  assert(r.heightSource === "field", "doctor-grid: heightSource is the real field, not combined");
+  assert(HintsExtract.formatSummary(r).indexOf("dari kolom Berat") === -1, "doctor-grid: summary has no combined-field note");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

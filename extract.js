@@ -23,6 +23,13 @@
   var IDENTITY_RE =
     /(Sdr\.|Ny\.|Tn\.|An\.)\s+([A-Za-z][A-Za-z.'\- ]*?)\s+RM\s*:\s*(\d+)(?:\s*,\s*(Laki-laki|Perempuan))?(?:\s*,?\s*(\d+\s*Y\s*\d+\s*M\s*\d+\s*D))?(?:\s*Alamat\s*:\s*(.*?))?(?=\s*(?:Sdr\.|Ny\.|Tn\.|An\.|$))/gs;
 
+  // Workaround pattern some nurses use when the dedicated height field isn't
+  // available to them (triage form didn't attach it, or only nurses — not
+  // doctors — have edit access to it): both numbers get typed into the
+  // *weight* field as free text, e.g. "7.71 kg / 71cm", leaving the real
+  // height field blank. Used only as a fallback when that field is empty.
+  var COMBINED_VITALS_RE = /(\d+(?:[.,]\d+)?)\s*kg\s*\/\s*(\d+(?:[.,]\d+)?)\s*cm/i;
+
   /**
    * Turn a remotely-supplied {pattern, flags} into a working RegExp, falling
    * back to `fallback` on any error — a malformed remote config must never
@@ -36,6 +43,20 @@
       // forever (re.exec never advances lastIndex on its own), so refuse it.
       if (re.flags.indexOf("g") === -1) return fallback;
       return re;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  /**
+   * Like compileRegex, but for a regex that's `exec()`'d once against a
+   * single string rather than looped over a whole page of text — so, unlike
+   * the identity pattern, it must NOT be required to carry the "g" flag.
+   */
+  function compileSimpleRegex(pattern, flags, fallback) {
+    if (!pattern) return fallback;
+    try {
+      return new RegExp(pattern, flags || "i");
     } catch (e) {
       return fallback;
     }
@@ -140,15 +161,23 @@
     };
   }
 
-  function readNumericField(doc, id) {
+  /** Raw string value of a field (trimmed), or null if the element/value is missing. */
+  function readRawField(doc, id) {
     var el = doc.getElementById && doc.getElementById(id);
     if (!el) return null;
     var raw = (el.value != null ? el.value : textOf(el)).toString().trim();
+    return raw || null;
+  }
+
+  function parseNumberFromRaw(raw) {
     if (!raw) return null;
     // HINTS/Kendo numeric inputs may use "," as a decimal separator.
-    var normalized = raw.replace(",", ".");
-    var num = parseFloat(normalized);
+    var num = parseFloat(raw.replace(",", "."));
     return isNaN(num) ? null : num;
+  }
+
+  function readNumericField(doc, id) {
+    return parseNumberFromRaw(readRawField(doc, id));
   }
 
   /**
@@ -174,14 +203,44 @@
       config && config.identityFlags,
       IDENTITY_RE
     );
+    var combinedVitalsRegex = compileSimpleRegex(
+      config && config.combinedVitalsPattern,
+      config && config.combinedVitalsFlags,
+      COMBINED_VITALS_RE
+    );
 
-    var weight = readNumericField(doc, weightId);
+    var weightRaw = readRawField(doc, weightId);
+    var weight = parseNumberFromRaw(weightRaw);
     var height = readNumericField(doc, heightId);
+    var heightSource = height != null ? "field" : null;
+
+    // Dedicated height field is empty (or missing) — some nurses type both
+    // numbers into the weight field instead when the real height field isn't
+    // available to them (see COMBINED_VITALS_RE above). Check there before
+    // giving up on height entirely.
+    if (height == null && weightRaw) {
+      var combinedMatch = combinedVitalsRegex.exec(weightRaw);
+      if (combinedMatch) {
+        var combinedHeight = parseFloat(combinedMatch[2].replace(",", "."));
+        if (!isNaN(combinedHeight)) {
+          height = combinedHeight;
+          heightSource = "combined-weight-field";
+        }
+        // Prefer the weight parsed out of the same combined string too, in
+        // case the field held something like "BB 7.71 / TB 71cm" where a
+        // leading label would otherwise throw off the plain leading-number
+        // parse used above.
+        var combinedWeight = parseFloat(combinedMatch[1].replace(",", "."));
+        if (!isNaN(combinedWeight)) weight = combinedWeight;
+      }
+    }
+
     var idResult = locateIdentity(doc, { identityRegex: identityRegex, weightId: weightId });
 
     return {
       weight: weight,
       height: height,
+      heightSource: heightSource,
       identities: idResult.identities,
       primary: idResult.primary,
       ambiguous: idResult.ambiguous,
@@ -202,7 +261,10 @@
       "JK: " + (p && p.gender ? p.gender : "-"),
       "Usia: " + (p && p.age ? p.age : "-"),
       "BB: " + (result.weight != null ? result.weight + " kg" : "-"),
-      "TB: " + (result.height != null ? result.height + " cm" : "-")
+      "TB: " +
+        (result.height != null
+          ? result.height + " cm" + (result.heightSource === "combined-weight-field" ? " (dari kolom Berat)" : "")
+          : "-")
     ];
     return lines.join("\n");
   }
@@ -211,10 +273,13 @@
     WEIGHT_ID: WEIGHT_ID,
     HEIGHT_ID: HEIGHT_ID,
     IDENTITY_RE: IDENTITY_RE,
+    COMBINED_VITALS_RE: COMBINED_VITALS_RE,
     compileRegex: compileRegex,
+    compileSimpleRegex: compileSimpleRegex,
     findIdentities: findIdentities,
     locateIdentity: locateIdentity,
     readNumericField: readNumericField,
+    readRawField: readRawField,
     extract: extract,
     formatSummary: formatSummary
   };
