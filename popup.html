@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>HINTS — Ambil Data Pasien</title>
+  <style>
+    body {
+      font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+      width: 300px;
+      margin: 0;
+      padding: 12px;
+      font-size: 13px;
+    }
+    h1 {
+      font-size: 14px;
+      margin: 0 0 10px;
+    }
+    button {
+      width: 100%;
+      padding: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+    #preview {
+      white-space: pre-wrap;
+      background: #f4f4f4;
+      border-radius: 4px;
+      padding: 8px;
+      min-height: 90px;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+    }
+    #status {
+      margin-top: 8px;
+      color: #555;
+    }
+    #status.warn {
+      color: #a15c00;
+    }
+    #status.error {
+      color: #b3261e;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #ddd;
+      margin: 10px 0;
+    }
+    button.secondary {
+      background: none;
+    }
+    #configStatus {
+      margin-top: 4px;
+      color: #555;
+      font-size: 12px;
+    }
+    #configStatus.error {
+      color: #b3261e;
+    }
+    #log {
+      margin-top: 6px;
+      white-space: pre-wrap;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: #777;
+      max-height: 90px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Ambil data pasien (HINTS)</h1>
+  <button id="grab">Ambil &amp; salin</button>
+  <div id="preview">Belum ada data.</div>
+  <div id="status"></div>
+  <hr />
+  <button id="update">Perbarui dari GitHub</button>
+  <button id="resetConfig" class="secondary">Kembalikan ke default</button>
+  <div id="configStatus"></div>
+  <div id="log"></div>
+  <script src="extract.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
