@@ -52,18 +52,28 @@ update — a small `config.json` in this repo, fetched on demand:
   picks it up the next time someone clicks **Perbarui dari GitHub** — no
   re-zip, no reinstalling on every machine.
 
-## Known limitation — carried over from the handover doc
+## Known limitation — carried over from the handover doc, confirmed in real use
 
 The exact DOM location where patient identity redisplays *after* a patient
 chart is opened wasn't confirmed from the DevTools recordings (they only
 capture the click that opens a patient). The page-wide text scan is the
-documented workaround and is what's implemented. If, in real use, the popup
-reports "more than one patient detected" often, or picks the wrong one, that
-means the page is showing more than the intended patient's identity text at
-once (e.g. still on a grid view) — the fix is either scoping the scan to a
-more specific container once someone can share the live DOM around the
-vitals panel, or coaching users to grab data only after the patient's own
-tab/popup is fully open.
+documented workaround. **Confirmed in real use on 20 Sep 2026**: on a real
+HINTS RSEC page, the scan detected two patients (the open one, and a second
+one — likely a previously-opened Kendo tab still present in the DOM even
+though hidden) and would have auto-picked the wrong one.
+
+**Fix shipped in v0.3.0**: when more than one patient is detected, the popup
+no longer guesses — it shows every candidate (name + RM) and copies nothing
+to the clipboard until the user clicks the correct one. This closes the
+patient-safety gap (wrong RM/weight pasted into a dosing calculator) without
+needing the DOM fix below; it does mean an extra click whenever HINTS shows
+more than one patient's identity text on the page.
+
+**Still open**: the *auto-detection* itself could be made smarter (so the
+ambiguity prompt shows up less often) if someone can capture the live DOM
+around the vitals panel while two patients are simultaneously present in it
+— but that's a quality-of-life improvement now, not a safety gap, since the
+picker makes a wrong guess impossible either way.
 
 ## Tests
 
